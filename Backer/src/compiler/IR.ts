@@ -1,88 +1,94 @@
 import * as X from "../../../Truth/Core/X";
+import { camelize } from "./util";
 
 /**
- * An internal intermediate representation used by the compiler.
- */
-export type IR = IRDeclaration[];
-
-/**
- * A data entity in the IR.
- */
-export interface IRDeclaration {
-	name: string;
-	declarationName: string;
-	topLevel: boolean;
-	inheritedFrom: string[];
-	children: IRDeclaration[];
-	parent?: IRDeclaration;
-}
-
-/**
- * Used in toIR to store deceleration stack entities.
+ * This namespace contains all the functionalities and tools required to
+ * deal with the Truth Intermediate representation.
+ * 
  * @internal
  */
-type DeclarationInfo = {
-	indent: number;
-	declaration: IRDeclaration;
-};
+export namespace IR {
+	/**
+	 * An IR document is a list of declarations that appear at the document's
+	 * top level.
+	 */
+	export type Document = Declaration[];
 
-/**
- * Convert a Truth document to an Internal Intermediate Representation.
- * @param doc A Truth document.
- * @returns The generated representation.
- */
-export function toIR(doc: X.Document): IR {
-	const result = new Set<IRDeclaration>();
-	let declarationStack: DeclarationInfo[] = [];
+	/**
+	 * A data entity in an IR document.
+	 */
+	export type Declaration = {
+		name: string;
+		declarationName: string;
+		topLevel: boolean;
+		inheritedFrom: string[];
+		children: Declaration[];
+		parent?: Declaration;
+	};
 
-	for (const statement of doc.eachStatement()) {
-		if (statement.isWhitespace || statement.isComment || statement.isNoop)
-			continue;
+	/**
+	 * Used in toIR to store deceleration stack entities.
+	 * @internal
+	 */
+	type DeclarationInfo = {
+		indent: number;
+		declaration: Declaration;
+	};
 
-		const { declarations, annotations, indent } = statement;
+	/**
+	 * Convert a Truth document to an Internal Intermediate Representation.
+	 * @param doc A Truth document.
+	 * @returns The generated representation.
+	 */
+	export function parseTruth(doc: X.Document): Document {
+		const result = new Set<Declaration>();
+		let declarationStack: DeclarationInfo[] = [];
 
-		const name = camelize(
-			X.SubjectSerializer.forExternal(declarations[0].boundary)
-		);
-		const inheritedFrom = annotations.map(annotation =>
-			camelize(X.SubjectSerializer.forExternal(annotation.boundary))
-		);
+		for (const statement of doc.eachStatement()) {
+			if (statement.isWhitespace || statement.isComment || statement.isNoop)
+				continue;
 
-		const declaration: IRDeclaration = {
-			name,
-			declarationName: name,
-			topLevel: indent === 0,
-			inheritedFrom,
-			children: []
-		};
+			const { declarations, annotations, indent } = statement;
 
-		const declarationStackEntity = { indent, declaration };
+			const name = camelize(
+				X.SubjectSerializer.forExternal(declarations[0].boundary)
+			);
+			const inheritedFrom = annotations.map(annotation =>
+				camelize(X.SubjectSerializer.forExternal(annotation.boundary))
+			);
 
-		if (indent === 0) {
-			declarationStack = [declarationStackEntity];
-			result.add(declaration);
-			continue;
+			const declaration: Declaration = {
+				name,
+				declarationName: name,
+				topLevel: indent === 0,
+				inheritedFrom,
+				children: []
+			};
+
+			const declarationStackEntity = { indent, declaration };
+
+			if (indent === 0) {
+				declarationStack = [declarationStackEntity];
+				result.add(declaration);
+				continue;
+			}
+
+			let lastDeclarationInfo: DeclarationInfo;
+			do {
+				lastDeclarationInfo = declarationStack.pop()!;
+			} while (lastDeclarationInfo.indent >= indent);
+
+			const parent = lastDeclarationInfo.declaration;
+			declarationStack.push(lastDeclarationInfo, declarationStackEntity);
+			parent.children.push(declaration);
+			declaration.parent = parent;
+			// We return a list of declarations that will be accessible by the
+			// user and that means any declaration with children or a topLevel.
+			result.add(parent);
+			if (parent.parent)
+				parent.declarationName = parent.parent.declarationName + parent.name;
 		}
 
-		let lastDeclarationInfo: DeclarationInfo;
-		do {
-			lastDeclarationInfo = declarationStack.pop()!;
-		} while (lastDeclarationInfo.indent >= indent);
-
-		declarationStack.push(lastDeclarationInfo, declarationStackEntity);
-		lastDeclarationInfo.declaration.children.push(declaration);
-		declaration.parent = lastDeclarationInfo.declaration;
-		declaration.declarationName = lastDeclarationInfo.declaration.declarationName + name;
-		// We return a list of declarations that will be accessible by the
-		// user and that means any declaration with children or a topLevel.
-		result.add(lastDeclarationInfo.declaration);
+		return [...result];
 	}
-
-	return [...result];
-}
-
-function camelize(str: string): string {
-	return str
-		.replace(/(?:^\w|[A-Z]|\b\w)/g, word => word.toUpperCase())
-		.replace(/\s+/g, "");
 }

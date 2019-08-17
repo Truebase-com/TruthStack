@@ -1,6 +1,7 @@
 import * as X from "../../Truth/Core/X";
 import { outdent } from "../../Truth/CoreTests/Framework/TestUtil";
-import { toIR } from "./compiler/IR";
+import { IR } from "./compiler/IR";
+import { JSEmitter } from "./compiler/JavaScriptEmitter";
 
 function main() 
 {
@@ -27,8 +28,8 @@ function main()
 	const prog = new X.Program();
 	const doc = prog.documents.create(source);
 	
-	const result = toIR(doc);
-	console.log(result);
+	const result = IR.parseTruth(doc);
+	JSEmitter(result);
 }
 
 main();
