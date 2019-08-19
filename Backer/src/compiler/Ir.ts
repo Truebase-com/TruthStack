@@ -1,10 +1,10 @@
 import * as X from "../../../Truth/Core/X";
-import { camelize } from "./util";
+import { camelize } from "./Util";
 
 /**
  * This namespace contains all the functionalities and tools required to
  * deal with the Truth Intermediate representation.
- * 
+ *
  * @internal
  */
 export namespace IR {
@@ -26,6 +26,11 @@ export namespace IR {
 		parent?: Declaration;
 	};
 
+	export interface Representation {
+		statements: X.Statement[];
+		declarations: Document;
+	}
+
 	/**
 	 * Used in toIR to store deceleration stack entities.
 	 * @internal
@@ -40,11 +45,16 @@ export namespace IR {
 	 * @param doc A Truth document.
 	 * @returns The generated representation.
 	 */
-	export function parseTruth(doc: X.Document): Document {
+	export function parseTruth(doc: X.Document): Representation 
+	{
+		const statements: X.Statement[] = [];
 		const result = new Set<Declaration>();
 		let declarationStack: DeclarationInfo[] = [];
 
-		for (const statement of doc.eachStatement()) {
+		for (const statement of doc.eachStatement()) 
+		{
+			statements.push(statement);
+
 			if (statement.isWhitespace || statement.isComment || statement.isNoop)
 				continue;
 
@@ -67,14 +77,16 @@ export namespace IR {
 
 			const declarationStackEntity = { indent, declaration };
 
-			if (indent === 0) {
+			if (indent === 0) 
+			{
 				declarationStack = [declarationStackEntity];
 				result.add(declaration);
 				continue;
 			}
 
 			let lastDeclarationInfo: DeclarationInfo;
-			do {
+			do 
+			{
 				lastDeclarationInfo = declarationStack.pop()!;
 			} while (lastDeclarationInfo.indent >= indent);
 
@@ -89,6 +101,9 @@ export namespace IR {
 				parent.declarationName = parent.parent.declarationName + parent.name;
 		}
 
-		return [...result];
+		return {
+			statements,
+			declarations: [...result]
+		};
 	}
 }
